@@ -1,0 +1,43 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+attendance-tracker
+attendance-tracker_*
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Bundled resources
+bundled.go
+
+# Fyne packaging output
+fyne-cross/
+
+# Distribution packages
+release/
+*.zip
+*.tar.gz
+*.dmg
+*.deb
+*.rpm
+
+# OS specific
+.DS_Store
+Thumbs.db 
+# Placeholder binaries
+releases/linux/bin/*placeholder*
