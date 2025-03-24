@@ -26,7 +26,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64 upx-ucl
+          sudo apt-get install -y gcc-mingw-w64 upx-ucl libgl1-mesa-dev xorg-dev
+          go install fyne.io/fyne/v2/cmd/fyne@latest
       
       - name: Extract version from tag
         id: extract_version
@@ -36,10 +37,13 @@ jobs:
           echo "BUILD_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
           echo "COMMIT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
       
-      - name: Build Windows executable
+      - name: Build with fyne
         run: |
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags "-X main.Version=${{ env.VERSION }} -X main.BuildDate=${{ env.BUILD_DATE }} -X main.CommitSHA=${{ env.COMMIT_SHA }} -H=windowsgui" -o "Attendance Tracker.exe"
-          upx --best "Attendance Tracker.exe"
+          export PATH=$PATH:$(go env GOPATH)/bin
+          fyne package -os windows -icon icon.png -appID com.rashidpathiyil.attendancetracker \
+            -release -name "Attendance Tracker" -appVersion "$VERSION" -appBuild "$COMMIT_SHA"
+          # Compress with UPX
+          upx --best "Attendance Tracker.exe" || true
       
       - name: Create release directory
         run: |

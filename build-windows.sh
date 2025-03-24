@@ -14,56 +14,34 @@ echo "Version: $VERSION"
 echo "Build date: $BUILD_DATE"
 echo "Commit: $COMMIT_SHA"
 
-# Generate Windows resource file
-cat > resource_windows.rc << EOF
-1 VERSIONINFO
-FILEVERSION     1,0,0,0
-PRODUCTVERSION  1,0,0,0
-BEGIN
-  BLOCK "StringFileInfo"
-  BEGIN
-    BLOCK "080904E4"
-    BEGIN
-      VALUE "CompanyName", "Rashid Pathiyil"
-      VALUE "FileDescription", "Attendance Tracker Application"
-      VALUE "FileVersion", "$VERSION"
-      VALUE "InternalName", "attendance_tracker"
-      VALUE "LegalCopyright", "Copyright © 2023 Rashid Pathiyil"
-      VALUE "OriginalFilename", "Attendance Tracker.exe"
-      VALUE "ProductName", "Attendance Tracker"
-      VALUE "ProductVersion", "$VERSION"
-    END
-  END
-  BLOCK "VarFileInfo"
-  BEGIN
-    VALUE "Translation", 0x809, 1252
-  END
-END
-
-1 ICON "icon.ico"
-EOF
-
-# Convert icon.png to icon.ico if needed
-if [ ! -f icon.ico ]; then
-  if command -v convert &> /dev/null; then
-    echo "Converting icon.png to icon.ico..."
-    convert icon.png -define icon:auto-resize=64,48,32,16 icon.ico
-  else
-    echo "Warning: ImageMagick not found, can't convert icon. Using default icon."
-    # Copy a default icon or create a minimal one
-  fi
-fi
-
 # Create version information
-# Fix the ldflags parameter format
 VERSION_LDFLAGS="-X main.Version=$VERSION -X main.BuildDate=$BUILD_DATE -X main.CommitSHA=$COMMIT_SHA"
 
 # Create directory for Windows release
 mkdir -p ./releases/windows
 
-# Compile the Windows version with version info
+# Check if fyne command exists
+if ! command -v fyne &> /dev/null; then
+    echo "Fyne CLI not found, installing..."
+    go install fyne.io/fyne/v2/cmd/fyne@latest
+fi
+
+# Cross-compile for Windows
 echo "Compiling Windows executable..."
-GOOS=windows GOARCH=amd64 go build -ldflags "$VERSION_LDFLAGS" -o "./releases/windows/$APP_NAME.exe"
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+    # Use direct go build with appropriate tags for GitHub Actions
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+    go build -tags "no_native_menus" -ldflags "$VERSION_LDFLAGS" -o "./releases/windows/$APP_NAME.exe"
+else
+    # Use fyne package for local builds
+    fyne package -os windows -icon icon.png -appID com.rashidpathiyil.attendancetracker \
+    -release -executable "./releases/windows/$APP_NAME.exe" -appVersion "$VERSION" -appBuild "$COMMIT_SHA"
+    
+    # Copy the executable to our releases directory if fyne package put it elsewhere
+    if [ ! -f "./releases/windows/$APP_NAME.exe" ]; then
+        cp "./$APP_NAME.exe" "./releases/windows/" 2>/dev/null || true
+    fi
+fi
 
 # Generate SHA-256 checksum for security verification
 echo "Generating SHA-256 checksum..."
