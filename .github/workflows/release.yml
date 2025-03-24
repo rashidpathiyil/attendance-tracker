@@ -1,0 +1,80 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Run workflow on version tags, e.g. v1.0.0
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed for creating releases
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64 upx-ucl
+      
+      - name: Extract version from tag
+        id: extract_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "COMMIT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
+      
+      - name: Build Windows executable
+        run: |
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags "-X 'main.Version=${{ env.VERSION }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.CommitSHA=${{ env.COMMIT_SHA }}' -H=windowsgui" -o "Attendance Tracker.exe"
+          upx --best "Attendance Tracker.exe"
+      
+      - name: Create release directory
+        run: |
+          mkdir -p ./release
+          cp "Attendance Tracker.exe" ./release/
+          cp LICENSE ./release/
+          cp README.md ./release/
+          cp -r assets ./release/ || true
+      
+      - name: Generate checksums
+        run: |
+          cd ./release
+          sha256sum "Attendance Tracker.exe" > "Attendance Tracker.exe.sha256"
+          cd ..
+      
+      - name: Create ZIP archive
+        run: |
+          cd ./release
+          zip -r "../Attendance-Tracker-${{ env.VERSION }}-windows.zip" .
+          cd ..
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            Attendance-Tracker-${{ env.VERSION }}-windows.zip
+          name: Attendance Tracker ${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: attendance-tracker-${{ env.VERSION }}
+          path: ./release/ 

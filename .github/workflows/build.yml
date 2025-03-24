@@ -1,0 +1,49 @@
+name: Build Attendance Tracker
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Build Windows Executable
+        run: |
+          chmod +x ./build-windows.sh
+          ./build-windows.sh
+      
+      - name: Generate SHA-256 Checksums
+        run: |
+          cd ./releases/windows
+          sha256sum "Attendance Tracker.exe" > "Attendance Tracker.exe.sha256"
+          cat "Attendance Tracker.exe.sha256"
+      
+      - name: Upload Windows Executable
+        uses: actions/upload-artifact@v3
+        with:
+          name: attendance-tracker-windows
+          path: |
+            ./releases/windows/Attendance Tracker.exe
+            ./releases/windows/Attendance Tracker.exe.sha256
+            ./releases/windows/install.bat
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./releases/windows/Attendance Tracker.exe
+            ./releases/windows/Attendance Tracker.exe.sha256
+            ./releases/windows/install.bat
+          generate_release_notes: true 

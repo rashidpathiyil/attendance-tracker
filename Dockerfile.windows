@@ -1,0 +1,30 @@
+FROM golang:1.20-bullseye
+
+# Install required dependencies for Windows cross-compilation
+RUN apt-get update && apt-get install -y \
+    gcc-mingw-w64 \
+    g++-mingw-w64 \
+    zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /app
+
+# Copy go.mod and go.sum first to leverage Docker caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the application
+COPY . .
+
+# Bundle icon resources
+RUN go install fyne.io/fyne/v2/cmd/fyne@latest
+RUN fyne bundle -o bundled.go icon.png
+
+# Build for Windows (64-bit) with proper GUI flags to prevent terminal windows
+RUN GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
+    go build -ldflags="-s -w -H=windowsgui" -tags forcewin -o attendance-tracker.exe
+
+# Generate a zip archive of the executable
+RUN mkdir -p /output && \
+    zip -j /output/attendance-tracker-windows-amd64.zip attendance-tracker.exe 
