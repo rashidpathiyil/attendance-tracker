@@ -21,23 +21,19 @@ type LASTINPUTINFO struct {
 	DwTime uint32
 }
 
-// getSystemIdleTimeWindows returns how long the system has been idle in Windows
-// Uses direct Windows API calls instead of spawning PowerShell
+// getSystemIdleTimeWindows returns the idle time for Windows
 func getSystemIdleTimeWindows() (time.Duration, error) {
 	lastInput := LASTINPUTINFO{
 		CbSize: uint32(unsafe.Sizeof(LASTINPUTINFO{})),
 	}
 
-	// Get last input info
 	ret, _, _ := procGetLastInputInfo.Call(uintptr(unsafe.Pointer(&lastInput)))
 	if ret == 0 {
-		return 0, nil // Error, assume no idle time
+		return 0, nil
 	}
 
-	// Get current tick count
 	currentTicks, _, _ := procGetTickCount.Call()
 
-	// Calculate idle time in milliseconds
 	idleTime := uint32(currentTicks) - lastInput.DwTime
 
 	return time.Duration(idleTime) * time.Millisecond, nil
