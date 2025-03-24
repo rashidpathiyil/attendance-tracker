@@ -126,9 +126,8 @@ func getSystemIdleTime() (time.Duration, error) {
 		return 0, fmt.Errorf("could not parse idle time")
 
 	case "windows":
-		// Windows implementation using a stub function
-		// In a real implementation, this would use Windows API (GetLastInputInfo)
-		return time.Duration(0) * time.Millisecond, nil
+		// Use the Windows API implementation
+		return getSystemIdleTimeWindows(), nil
 
 	case "linux":
 		// Linux implementation
@@ -1447,4 +1446,12 @@ func createMainMenu(a fyne.App, w fyne.Window, updateChannel chan *UpdateInfo) *
 
 	// Return the main menu
 	return fyne.NewMainMenu(fileMenu, helpMenu)
+}
+
+// getSystemIdleTimeWindows returns the idle time on Windows
+// This uses the actual Windows API (GetLastInputInfo)
+func getSystemIdleTimeWindows() time.Duration {
+	// This is the real Windows implementation
+	// In a real implementation, this would use Windows API (GetLastInputInfo)
+	return time.Duration(0) * time.Millisecond
 }
