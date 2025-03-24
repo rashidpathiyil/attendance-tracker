@@ -5,11 +5,7 @@ RUN apt-get update && apt-get install -y \
     gcc-mingw-w64 \
     g++-mingw-w64 \
     zip \
-    imagemagick \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Fyne CLI for packaging
-RUN go install fyne.io/fyne/v2/cmd/fyne@latest
 
 # Set up working directory
 WORKDIR /app
@@ -22,61 +18,13 @@ RUN go mod download
 COPY . .
 
 # Bundle icon resources
+RUN go install fyne.io/fyne/v2/cmd/fyne@latest
 RUN fyne bundle -o bundled.go icon.png
 
-# Create a Windows resource file (syso) that includes application metadata and icon
-RUN echo -e "\
-#include <windows.h>\n\
-\n\
-CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST \"app.manifest\"\n\
-1 ICON \"icon.ico\"\n\
-\n\
-VS_VERSION_INFO VERSIONINFO\n\
-FILEVERSION     1,0,0,0\n\
-PRODUCTVERSION  1,0,0,0\n\
-FILEFLAGSMASK   0x3fL\n\
-FILEFLAGS       0x0L\n\
-FILEOS          0x40004L\n\
-FILETYPE        0x1L\n\
-FILESUBTYPE     0x0L\n\
-BEGIN\n\
-    BLOCK \"StringFileInfo\"\n\
-    BEGIN\n\
-        BLOCK \"040904b0\"\n\
-        BEGIN\n\
-            VALUE \"CompanyName\", \"Attendance Tracker\"\n\
-            VALUE \"FileDescription\", \"Attendance Tracking Application\"\n\
-            VALUE \"FileVersion\", \"1.0.0.0\"\n\
-            VALUE \"InternalName\", \"attendance-tracker\"\n\
-            VALUE \"LegalCopyright\", \"Copyright (c) 2023 Rashid Pathiyil\"\n\
-            VALUE \"OriginalFilename\", \"AttendanceTracker.exe\"\n\
-            VALUE \"ProductName\", \"Attendance Tracker\"\n\
-            VALUE \"ProductVersion\", \"1.0.0.0\"\n\
-        END\n\
-    END\n\
-    BLOCK \"VarFileInfo\"\n\
-    BEGIN\n\
-        VALUE \"Translation\", 0x409, 1200\n\
-    END\n\
-END\n\
-" > resources.rc
+# Build for Windows (64-bit) with proper GUI flags to prevent terminal windows
+RUN GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
+    go build -ldflags="-s -w -H=windowsgui" -tags forcewin -o attendance-tracker.exe
 
-# Convert icon for Windows
-RUN convert icon.png -define icon:auto-resize=64,48,32,16 icon.ico || echo "Using default icon"
-
-# Compile the resource file
-RUN x86_64-w64-mingw32-windres -i resources.rc -o resources.syso || echo "Using default resources"
-
-# Build Windows installer package with proper app metadata
-# Include upgrade code for detecting previous installations
+# Generate a zip archive of the executable
 RUN mkdir -p /output && \
-    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
-    fyne package -os windows -icon icon.png \
-    -appID com.attendancetracker \
-    -name "Attendance Tracker" \
-    -appVersion 1.0.0 \
-    -appBuild 1 \
-    -release
-
-# Copy installer to output directory
-RUN cp *.msi /output/ || cp *.exe /output/ 
+    zip -j /output/attendance-tracker-windows-amd64.zip attendance-tracker.exe 
