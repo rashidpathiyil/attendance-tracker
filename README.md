@@ -30,16 +30,6 @@ A cross-platform desktop application for tracking user attendance with automatic
 
 - **Windows**: Uses PowerShell for idle detection (no additional dependencies)
 
-## Security and Verification
-
-To verify the authenticity of downloaded executables:
-
-1. **Check SHA-256 checksum** - Each release includes a `.sha256` file containing the checksum of the executable.
-2. **Use the included verification script** - Run `verify.ps1` on Windows to automatically check signatures and checksums.
-3. **Windows SmartScreen** - If you see a SmartScreen warning, click "More info" then "Run anyway" after verifying the checksum.
-
-For more detailed security information, please see [SECURITY.md](SECURITY.md).
-
 ## Building from source
 
 ### Install Go
