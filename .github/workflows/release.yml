@@ -38,7 +38,7 @@ jobs:
       
       - name: Build Windows executable
         run: |
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags "-X 'main.Version=${{ env.VERSION }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.CommitSHA=${{ env.COMMIT_SHA }}' -H=windowsgui" -o "Attendance Tracker.exe"
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags "-X main.Version=${{ env.VERSION }} -X main.BuildDate=${{ env.BUILD_DATE }} -X main.CommitSHA=${{ env.COMMIT_SHA }} -H=windowsgui" -o "Attendance Tracker.exe"
           upx --best "Attendance Tracker.exe"
       
       - name: Create release directory

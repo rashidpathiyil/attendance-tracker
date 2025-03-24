@@ -55,14 +55,15 @@ if [ ! -f icon.ico ]; then
 fi
 
 # Create version information
-VERSION_INFO="-ldflags \"-X 'main.Version=$VERSION' -X 'main.BuildDate=$BUILD_DATE' -X 'main.CommitSHA=$COMMIT_SHA'\""
+# Fix the ldflags parameter format
+VERSION_LDFLAGS="-X main.Version=$VERSION -X main.BuildDate=$BUILD_DATE -X main.CommitSHA=$COMMIT_SHA"
 
 # Create directory for Windows release
 mkdir -p ./releases/windows
 
 # Compile the Windows version with version info
 echo "Compiling Windows executable..."
-GOOS=windows GOARCH=amd64 go build $VERSION_INFO -o "./releases/windows/$APP_NAME.exe"
+GOOS=windows GOARCH=amd64 go build -ldflags "$VERSION_LDFLAGS" -o "./releases/windows/$APP_NAME.exe"
 
 # Generate SHA-256 checksum for security verification
 echo "Generating SHA-256 checksum..."
