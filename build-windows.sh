@@ -3,28 +3,73 @@
 # Exit on error
 set -e
 
-# Configuration
+# Set application name
 APP_NAME="Attendance Tracker"
-VERSION="1.0.0"  # Update this for each release
-BUILD_DATE=$(date +"%Y-%m-%d")
-COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+# Check if at least 3 arguments are provided
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 VERSION BUILD_DATE COMMIT_SHA"
+    echo "Example: $0 1.0.0 $(date +%Y-%m-%d) $(git rev-parse --short HEAD)"
+    exit 1
+fi
+
+VERSION="$1"
+BUILD_DATE="$2"
+COMMIT_SHA="$3"
 
 echo "Building $APP_NAME for Windows..."
 echo "Version: $VERSION"
 echo "Build date: $BUILD_DATE"
 echo "Commit: $COMMIT_SHA"
+echo ""
+echo "Note: Building Windows executables on macOS can be complex."
+echo "Alternative options if you encounter problems:"
+echo "1. Build using the GitHub Actions workflow (recommended)"
+echo "2. Build directly on a Windows machine"
+echo "3. Use a Docker container with proper cross-compilation setup"
+echo ""
 
-# Create version information
-VERSION_LDFLAGS="-X main.Version=$VERSION -X main.BuildDate=$BUILD_DATE -X main.CommitSHA=$COMMIT_SHA"
-
-# Create directory for Windows release
-mkdir -p ./releases/windows
-
-# Check if fyne command exists
-if ! command -v fyne &> /dev/null; then
-    echo "Fyne CLI not found, installing..."
-    go install fyne.io/fyne/v2/cmd/fyne@latest
+# Check operating system
+SYS_OS="unknown"
+if [ "$(uname)" == "Darwin" ]; then
+    SYS_OS="macos"
+elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+    SYS_OS="linux"
+elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ] || [ "$(expr substr $(uname -s) 1 10)" == "MINGW64_NT" ]; then
+    SYS_OS="windows"
 fi
+
+# Check for MinGW (only needed for cross-compilation)
+HAS_MINGW=0
+if [ "$SYS_OS" != "windows" ]; then
+    if command -v x86_64-w64-mingw32-gcc &> /dev/null; then
+        HAS_MINGW=1
+    fi
+fi
+
+# Check for Fyne CLI
+if ! command -v fyne &> /dev/null; then
+    echo "Fyne CLI not found. Installing..."
+    go install fyne.io/fyne/v2/cmd/fyne@latest
+    
+    # Check if installation was successful
+    if ! command -v fyne &> /dev/null; then
+        echo "Failed to install Fyne CLI automatically. Please install manually:"
+        echo "go install fyne.io/fyne/v2/cmd/fyne@latest"
+        echo ""
+        echo "Make sure your GOPATH/bin is in your PATH environment variable."
+        echo "For example, add this to your ~/.bashrc or ~/.zshrc:"
+        echo "  export PATH=\$PATH:\$HOME/go/bin"
+        exit 1
+    fi
+    echo "Fyne CLI installed successfully."
+fi
+
+# Create versions
+VERSION_LDFLAGS="-X main.Version=${VERSION} -X main.BuildDate=${BUILD_DATE} -X main.CommitSHA=${COMMIT_SHA}"
+
+# Create output directory
+mkdir -p ./releases/windows
 
 # Cross-compile for Windows
 echo "Compiling Windows executable..."
@@ -32,34 +77,46 @@ if [ "$GITHUB_ACTIONS" = "true" ]; then
     # Use direct go build with appropriate tags for GitHub Actions
     GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
     go build -tags "no_native_menus" -ldflags "$VERSION_LDFLAGS" -o "./releases/windows/$APP_NAME.exe"
-else
-    # Use fyne package for local builds
-    fyne package -os windows -icon icon.png -appID com.rashidpathiyil.attendancetracker \
-    -release -executable "./releases/windows/$APP_NAME.exe" -appVersion "$VERSION" -appBuild "$COMMIT_SHA"
+elif [ "$HAS_MINGW" = "1" ]; then
+    # Use direct Go build with MinGW cross-compiler
+    echo "Building with MinGW cross-compiler..."
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+    go build -tags "no_native_menus" -ldflags "$VERSION_LDFLAGS" -o "./releases/windows/$APP_NAME.exe"
     
-    # Copy the executable to our releases directory if fyne package put it elsewhere
-    if [ ! -f "./releases/windows/$APP_NAME.exe" ]; then
-        cp "./$APP_NAME.exe" "./releases/windows/" 2>/dev/null || true
+    # Optionally use UPX for compression if available
+    if command -v upx &> /dev/null; then
+        echo "Compressing with UPX..."
+        upx --best "./releases/windows/$APP_NAME.exe" || echo "UPX compression failed, continuing without it"
     fi
-fi
-
-# Generate SHA-256 checksum for security verification
-echo "Generating SHA-256 checksum..."
-if command -v sha256sum &> /dev/null; then
-  (cd ./releases/windows && sha256sum "$APP_NAME.exe" > "$APP_NAME.exe.sha256")
-elif command -v shasum &> /dev/null; then
-  (cd ./releases/windows && shasum -a 256 "$APP_NAME.exe" > "$APP_NAME.exe.sha256")
 else
-  echo "Warning: Could not generate SHA-256 checksum, neither sha256sum nor shasum found."
+    # Fallback to simple GOOS=windows without CGO for environments without MinGW
+    echo "WARNING: Building without CGO (limited functionality). For full features, install MinGW."
+    echo ""
+    echo "To install the required MinGW cross-compiler:"
+    if [ "$SYS_OS" = "macos" ]; then
+        echo "  macOS: brew install mingw-w64"
+    elif [ "$SYS_OS" = "linux" ]; then
+        echo "  Linux: sudo apt-get install gcc-mingw-w64"
+    else
+        echo "  Windows: Use native compilation instead"
+    fi
+    echo ""
+    echo "Building with limited functionality..."
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+    go build -tags "mobile" -ldflags "$VERSION_LDFLAGS" -o "./releases/windows/$APP_NAME.exe"
 fi
 
-# Copy verification scripts if they exist
-if [ -f "verify.ps1" ]; then
-  cp verify.ps1 ./releases/windows/
-fi
-if [ -f "SECURITY.md" ]; then
-  cp SECURITY.md ./releases/windows/VERIFICATION.txt
-fi
+# Generate SHA-256 checksums
+echo "Generating checksums..."
+cd ./releases/windows
+sha256sum "$APP_NAME.exe" > "$APP_NAME.exe.sha256"
+cd ../..
+
+# Copy verification tools
+echo "Copying verification tools..."
+cp verify.ps1 ./releases/windows/ 2>/dev/null || echo "Warning: verify.ps1 not found"
+cp SECURITY.md ./releases/windows/VERIFICATION.txt 2>/dev/null || echo "Warning: SECURITY.md not found"
+cp install.bat ./releases/windows/ 2>/dev/null || echo "Warning: install.bat not found"
 
 # Create a simple NSIS installer script for Windows
 cat > ./releases/windows/install.nsi << EOF
